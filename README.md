@@ -31,6 +31,28 @@ ApplicationContext. The can be done with SpringContextJerseyTest.getSpringApplic
 I'm able to create mocked objects with Mockito using a factory pattern in the MockFactory. The MockFactory is able to
 create a mocked version of SomeService.
 
+Testing
+-------
+
+You're able to run the test by running this command, or run the test in you're IDE.
+
+    mvn test
+
+The real implementation can also be tested, you're able to run the application with the following command.
+
+    mvn jetty:run
+
+And when the application is started, you can test the resource with following command (OSX tested only)
+
+    curl -i http://localhost:8080/resources/someaction
+
+You should a response like this
+
+     HTTP/1.1 204 No Content
+     Server: Jetty(8.1.14.v20131031)
+
+
+
 
 
 
