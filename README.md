@@ -46,7 +46,7 @@ And when the application is started, you can test the resource with following co
 
     curl -i http://localhost:8080/resources/someaction
 
-You should a response like this
+You should expect a response like this
 
      HTTP/1.1 204 No Content
      Server: Jetty(8.1.14.v20131031)
