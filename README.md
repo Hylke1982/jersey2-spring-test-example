@@ -1,9 +1,10 @@
-Jersey 2, Spring framework, Mockito test example
-================================================
+Jersey 2.8, Spring framework, Mockito test example
+==================================================
 
-The problem I ran into while using Jersey 2 in combination with Spring Framework was,
+The problem I ran into while using Jersey 2.8 in combination with Spring Framework was,
 that I was unable to wire in Mockito mocks into Jersey 2 resources while doing integration test. I created this sample
-application to show you how to solve this problem.
+application to show you how to solve this problem. After version 2.7 it was not longer possible to use ApplicationHandler
+to get the Spring Application Context, the Spring context was loaded 2 times when using the old method.
 
 Problem
 -------
