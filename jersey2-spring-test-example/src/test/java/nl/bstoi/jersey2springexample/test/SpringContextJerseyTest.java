@@ -4,15 +4,12 @@ package nl.bstoi.jersey2springexample.test;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import org.glassfish.hk2.api.ServiceLocator;
 import org.glassfish.jersey.client.ClientConfig;
 import org.glassfish.jersey.filter.LoggingFilter;
 import org.glassfish.jersey.internal.ServiceFinderBinder;
-import org.glassfish.jersey.internal.inject.Providers;
 import org.glassfish.jersey.internal.util.PropertiesHelper;
-import org.glassfish.jersey.internal.util.ReflectionHelper;
-import org.glassfish.jersey.server.ApplicationHandler;
 import org.glassfish.jersey.server.ResourceConfig;
+import org.glassfish.jersey.test.DeploymentContext;
 import org.glassfish.jersey.test.TestProperties;
 import org.glassfish.jersey.test.spi.TestContainer;
 import org.glassfish.jersey.test.spi.TestContainerException;
@@ -46,7 +43,7 @@ public class SpringContextJerseyTest {
      * Holds the default test container factory class to be used for running the
      * tests.
      */
-    private static Class<? extends TestContainerFactory> testContainerFactoryClass;
+    private static Class<? extends SpringTestContainerFactory> testContainerFactoryClass;
     /**
      * The test container factory which creates an instance of the test container
      * on which the tests would be run.
@@ -55,9 +52,12 @@ public class SpringContextJerseyTest {
     /**
      * The test container on which the tests would be run.
      */
-    private final TestContainer tc;
+    private final SpringTestContainer tc;
     private Client client;
-    private final ApplicationHandler application;
+
+    private final ResourceConfig resourceConfig;
+
+    private final DeploymentContext deploymentContext;
     /**
      * JerseyTest property bag that can be used to configure the test behavior.
      * These properties can be overridden with a system property.
@@ -76,102 +76,22 @@ public class SpringContextJerseyTest {
 
     /**
      * An extending class must implement the {@link #configure()} method to
-     * provide an application descriptor.
+     * provide an applicationHandler descriptor.
      *
-     * @throws org.glassfish.jersey.test.spi.TestContainerException
-     *          if the default test container factory
-     *          cannot be obtained, or the application descriptor is not
-     *          supported by the test container factory.
+     * @throws org.glassfish.jersey.test.spi.TestContainerException if the default test container factory
+     *                                                              cannot be obtained, or the applicationHandler descriptor is not
+     *                                                              supported by the test container factory.
      */
     public SpringContextJerseyTest() throws TestContainerException {
-        ResourceConfig config = getResourceConfig(configure());
-        config.register(new ServiceFinderBinder<TestContainerFactory>(TestContainerFactory.class, null, RuntimeType.SERVER));
+        Application application1 = configure();
+        deploymentContext = DeploymentContext.builder(application1).build();
+        resourceConfig = deploymentContext.getResourceConfig();
+        resourceConfig.register(new ServiceFinderBinder<TestContainerFactory>(TestContainerFactory.class, null, RuntimeType.SERVER));
 
         if (isLogRecordingEnabled()) {
             registerLogHandler();
         }
-        this.application = new ApplicationHandler(config);
-        this.tc = getContainer(application, getTestContainerFactory());
-        if (isLogRecordingEnabled()) {
-            loggedStartupRecords.addAll(loggedRuntimeRecords);
-            loggedRuntimeRecords.clear();
-            unregisterLogHandler();
-        }
-    }
-
-    /**
-     * Construct a new instance with a test container factory.
-     * <p/>
-     * An extending class must implement the {@link #configure()} method to
-     * provide an application descriptor.
-     *
-     * @param testContainerFactory the test container factory to use for testing.
-     * @throws TestContainerException if the application descriptor is not
-     *                                supported by the test container factory.
-     */
-    public SpringContextJerseyTest(TestContainerFactory testContainerFactory) {
-        setTestContainerFactory(testContainerFactory);
-
-        ResourceConfig config = getResourceConfig(configure());
-        config.register(new ServiceFinderBinder<TestContainerFactory>(TestContainerFactory.class, null, RuntimeType.SERVER));
-        if (isLogRecordingEnabled()) {
-            registerLogHandler();
-        }
-        this.application = new ApplicationHandler(config);
-        this.tc = getContainer(application, testContainerFactory);
-        if (isLogRecordingEnabled()) {
-            loggedStartupRecords.addAll(loggedRuntimeRecords);
-            loggedRuntimeRecords.clear();
-            unregisterLogHandler();
-        }
-    }
-
-    private ResourceConfig getResourceConfig(Application app) {
-        return ResourceConfig.forApplication(app);
-    }
-
-    /**
-     * Construct a new instance with an application descriptor that defines
-     * how the test container is configured.
-     *
-     * @param jaxrsApplication an application describing how to configure the
-     *                         test container.
-     * @throws TestContainerException if the default test container factory
-     *                                cannot be obtained, or the application descriptor is not
-     *                                supported by the test container factory.
-     */
-    public SpringContextJerseyTest(Application jaxrsApplication) throws TestContainerException {
-        ResourceConfig config = getResourceConfig(jaxrsApplication);
-        config.register(new ServiceFinderBinder<TestContainerFactory>(TestContainerFactory.class, null, RuntimeType.SERVER));
-        if (isLogRecordingEnabled()) {
-            registerLogHandler();
-        }
-        this.application = new ApplicationHandler(config);
-        this.tc = getContainer(application, getTestContainerFactory());
-        if (isLogRecordingEnabled()) {
-            loggedStartupRecords.addAll(loggedRuntimeRecords);
-            loggedRuntimeRecords.clear();
-            unregisterLogHandler();
-        }
-    }
-
-    /**
-     * Construct a new instance with an {@link Application} class.
-     *
-     * @param jaxrsApplicationClass an application describing how to configure the
-     *                              test container.
-     * @throws TestContainerException if the default test container factory
-     *                                cannot be obtained, or the application descriptor is not
-     *                                supported by the test container factory.
-     */
-    public SpringContextJerseyTest(Class<? extends Application> jaxrsApplicationClass) throws TestContainerException {
-        ResourceConfig config = ResourceConfig.forApplicationClass(jaxrsApplicationClass);
-        config.register(new ServiceFinderBinder<TestContainerFactory>(TestContainerFactory.class, null, RuntimeType.SERVER));
-        if (isLogRecordingEnabled()) {
-            registerLogHandler();
-        }
-        this.application = new ApplicationHandler(config);
-        this.tc = getContainer(application, getTestContainerFactory());
+        this.tc = getContainer(getTestContainerFactory());
         if (isLogRecordingEnabled()) {
             loggedStartupRecords.addAll(loggedRuntimeRecords);
             loggedRuntimeRecords.clear();
@@ -283,115 +203,32 @@ public class SpringContextJerseyTest {
     }
 
     /**
-     * Return an JAX-RS application that defines how the application in the
+     * Return an JAX-RS applicationHandler that defines how the applicationHandler in the
      * test container is configured.
      * <p/>
-     * If a constructor is utilized that does not supply an application
-     * descriptor then this method must be overridden to return an application
+     * If a constructor is utilized that does not supply an applicationHandler
+     * descriptor then this method must be overridden to return an applicationHandler
      * descriptor, otherwise an {@link UnsupportedOperationException} exception
      * will be thrown.
      * <p/>
-     * If a constructor is utilized that does supply an application descriptor
+     * If a constructor is utilized that does supply an applicationHandler descriptor
      * then this method does not require to be overridden and will not be
      * invoked.
      *
-     * @return the application descriptor.
+     * @return the applicationHandler descriptor.
      */
     protected Application configure() {
         throw new UnsupportedOperationException(
                 "The configure method must be implemented by the extending class");
     }
 
-    /**
-     * Sets the test container factory to to be used for testing.
-     *
-     * @param testContainerFactory the test container factory to to be used for
-     *                             testing.
-     */
-    protected final void setTestContainerFactory(TestContainerFactory testContainerFactory) {
-        this.testContainerFactory = testContainerFactory;
-    }
-
-    /**
-     * Returns an instance of {@link TestContainerFactory} class. This instance can be set by a constructor ({@link
-     * #SpringContextJerseyTest(org.glassfish.jersey.test.spi.TestContainerFactory)}, as an application {@link org.glassfish.jersey.internal.inject.Providers Provider} or the
-     * {@link TestContainerFactory} class can be set as a {@value org.glassfish.jersey.test.TestProperties#CONTAINER_FACTORY}
-     * property.
-     *
-     * @return an instance of {@link TestContainerFactory} class.
-     * @throws TestContainerException if the initialization of {@link TestContainerFactory} instance is not successful.
-     */
-    protected TestContainerFactory getTestContainerFactory() throws TestContainerException {
-        if (testContainerFactory == null) {
-            if (testContainerFactoryClass == null) {
-
-                final String tcfClassName = getProperty(TestProperties.CONTAINER_FACTORY);
-                if ((tcfClassName == null)) {
-                    Set<TestContainerFactory> testContainerFactories =
-                            Providers.getProviders(application.getServiceLocator(), TestContainerFactory.class);
-
-                    if (testContainerFactories.size() >= 1) {
-                        // if default factory is present, use it.
-                        for (TestContainerFactory tcFactory : testContainerFactories) {
-
-                            if (tcFactory.getClass().getName().equals(TestProperties.DEFAULT_CONTAINER_FACTORY)) {
-                                LOGGER.log(
-                                        Level.CONFIG,
-                                        "Found multiple TestContainerFactory implementations, using default {0}",
-                                        tcFactory.getClass().getName());
-
-                                testContainerFactoryClass = tcFactory.getClass(); // is this necessary?
-                                return tcFactory;
-                            }
-                        }
-
-                        if (testContainerFactories.size() != 1) {
-                            LOGGER.log(
-                                    Level.WARNING,
-                                    "Found multiple TestContainerFactory implementations, using {0}",
-                                    testContainerFactories.iterator().next().getClass().getName());
-                        }
-
-                        testContainerFactoryClass = testContainerFactories.iterator().next().getClass();
-                        return testContainerFactories.iterator().next();
-
-                    }
-                } else {
-                    final Class<Object> tfClass = AccessController.doPrivileged(ReflectionHelper.classForNamePA(tcfClassName, null));
-                    if (tfClass == null) {
-                        throw new TestContainerException(
-                                "The default test container factory class name, "
-                                        + tcfClassName
-                                        + ", cannot be loaded");
-                    }
-                    try {
-                        testContainerFactoryClass =
-                                tfClass.asSubclass(TestContainerFactory.class);
-                    } catch (ClassCastException ex) {
-                        throw new TestContainerException(
-                                "The default test container factory class, "
-                                        + tcfClassName
-                                        + ", is not an instance of TestContainerFactory", ex);
-                    }
-                }
-            }
-
-            try {
-                return testContainerFactoryClass.newInstance();
-            } catch (Exception ex) {
-                throw new TestContainerException(
-                        "The default test container factory, "
-                                + testContainerFactoryClass
-                                + ", could not be instantiated", ex);
-            }
-        }
-
-        return testContainerFactory;
+    protected SpringTestContainerFactory getTestContainerFactory() throws TestContainerException {
+        return new SpringGrizzlyTestContainerFactory();
     }
 
     /**
      * Create a web resource whose URI refers to the base URI the Web
-     * application is deployed at.
+     * applicationHandler is deployed at.
      *
      * @return the created web resource
      */
@@ -401,7 +238,7 @@ public class SpringContextJerseyTest {
 
     /**
      * Create a web resource whose URI refers to the base URI the Web
-     * application is deployed at plus the path specified in the argument.
+     * applicationHandler is deployed at plus the path specified in the argument.
      * <p/>
      * This method is an equivalent of calling {@code target().path(path)}.
      *
@@ -419,7 +256,7 @@ public class SpringContextJerseyTest {
      */
     public Client client() {
         if (client == null) {
-            client = getClient(tc, application);
+            client = getClient(tc);
         }
         return client;
     }
@@ -456,12 +293,8 @@ public class SpringContextJerseyTest {
         tc.stop();
     }
 
-    private TestContainer getContainer(ApplicationHandler application, TestContainerFactory tcf) {
-        if (application == null) {
-            throw new IllegalArgumentException("The application cannot be null");
-        }
-
-        return tcf.create(getBaseUri(), application);
+    private SpringTestContainer getContainer(SpringTestContainerFactory tcf) {
+        return tcf.create(getBaseUri(), deploymentContext);
     }
 
     /**
@@ -473,11 +306,10 @@ public class SpringContextJerseyTest {
      * <p/>
      * This method is called exactly once when JerseyTest is created.
      *
-     * @param tc                 instance of {@link TestContainer}
-     * @param applicationHandler instance of {@link ApplicationHandler}
+     * @param tc instance of {@link TestContainer}
      * @return A Client instance.
      */
-    protected Client getClient(TestContainer tc, ApplicationHandler applicationHandler) {
+    protected Client getClient(SpringTestContainer tc) {
         ClientConfig cc = tc.getClientConfig();
 
         if (cc == null) {
@@ -507,16 +339,16 @@ public class SpringContextJerseyTest {
     }
 
     /**
-     * Returns the base URI of the application.
+     * Returns the base URI of the applicationHandler.
      *
-     * @return The base URI of the application
+     * @return The base URI of the applicationHandler
      */
     protected URI getBaseUri() {
         return UriBuilder.fromUri("http://localhost/").port(getPort()).build();
     }
 
     /**
-     * Get the port to be used for test application deployments.
+     * Get the port to be used for test applicationHandler deployments.
      *
      * @return The HTTP port of the URI
      */
@@ -535,7 +367,8 @@ public class SpringContextJerseyTest {
                         "Value of " + TestProperties.CONTAINER_PORT
                                 + " property is not a valid positive integer [" + value + "]."
                                 + " Reverting to default [" + TestProperties.DEFAULT_CONTAINER_PORT + "].",
-                        e);
+                        e
+                );
             }
         }
         return TestProperties.DEFAULT_CONTAINER_PORT;
@@ -661,13 +494,8 @@ public class SpringContextJerseyTest {
         return logHandler;
     }
 
-    protected final ApplicationHandler getApplication() {
-        return application;
-    }
-
     protected ApplicationContext getSpringApplicationContext() {
-        ServiceLocator serviceLocator = getApplication().getServiceLocator();
-        return serviceLocator.getService(ApplicationContext.class);
+        return tc.getApplicationContext();
     }
 }
 
