@@ -5,6 +5,8 @@ The problem I ran into while using Jersey 2 in combination with Spring Framework
 that I was unable to wire in Mockito mocks into Jersey 2 resources while doing integration test. I created this sample
 application to show you how to solve this problem.
 
+For jersey 2.8 and above you can checkout my solution [here](https://github.com/Hylke1982/jersey2-spring-test-example/tree/jersey-2.8)
+
 Problem
 -------
 
